@@ -13,10 +13,12 @@ file(GLOB_RECURSE HEADER_FILES
         ${CMAKE_SOURCE_DIR}/src/*.h
         ${CMAKE_SOURCE_DIR}/src/*.hpp)
 
+
 # Define the executable
 add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES}
-        src/gl_vertexShader.h
-        src/gl_fragmentShader.h)
+        rsc/shaders/gl_vertexShader.h
+        rsc/shaders/gl_fragmentShader.h
+        src/Shader.h)
 
 
 # We need a CMAKE_DIR with some code to find external dependencies
@@ -26,11 +28,15 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 # LOOK for the packages that we need! #
 #######################################
 
+find_package(Freetype REQUIRED)
+
 # OpenGL
 find_package(OpenGL REQUIRED)
 
 # GLFW
 find_package(GLFW3 REQUIRED)
+
+find_package(glm REQUIRED)
 
 # Find the installed `stb` library
 find_package(PkgConfig REQUIRED)
@@ -40,11 +46,13 @@ pkg_check_modules(STB REQUIRED stb)
 include_directories(${STB_INCLUDE_DIRS})
 
 # Put all libraries into a variable
-set(LIBS ${GLFW3_LIBRARY} ${OPENGL_LIBRARY} stb)
+set(LIBS ${GLFW3_LIBRARY} ${OPENGL_LIBRARY} Freetype::Freetype glm::glm)
+
 
 # Define the include DIRs
 include_directories(
         "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_SOURCE_DIR}/rsc"
         "${CMAKE_SOURCE_DIR}/glad"
         "${CMAKE_SOURCE_DIR}/KHR"
 )
@@ -57,8 +65,8 @@ add_custom_command(
         TARGET lab1_graphics
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/img"
-        "$<TARGET_FILE_DIR:lab1_graphics>/img"
+        "${CMAKE_SOURCE_DIR}/rsc"
+        "$<TARGET_FILE_DIR:lab1_graphics>/rsc"
 )
 
 # add OpenGL

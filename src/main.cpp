@@ -4,6 +4,10 @@
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include <cassert>
 #include <thread>
 #include <ranges>
@@ -11,11 +15,12 @@
 #include <vector>
 
 
-#include "gl_vertexShader.h"
-#include "gl_fragmentShader.h"
+#include "shaders/gl_vertexShader.h"
+#include "shaders/gl_fragmentShader.h"
+#include "TextRenderer.h"
 
 
-inline const int WIN_WIDTH = 800;
+inline const int WIN_WIDTH = 600;
 inline const int WIN_HEIGHT = 600;
 
 
@@ -43,7 +48,7 @@ GLFWwindow* StartOpenGL() {
 }
 
 void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
-    glViewport(width/4, height/4, width/2, height/2);
+    glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
 }
 
 void ProcessInput(GLFWwindow* window) {
@@ -198,82 +203,60 @@ VBOandVAO GenerateVBOandVAO(const std::vector<float>& vertices,  const std::vect
     return {VBO, VAO};
 }
 
-int main() {
-
-    auto win = StartOpenGL();
-
-    // bruh, it is not working on wayland
+void InitIcon(GLFWwindow* win) {
+    // bruh, icon is not working on wayland
     GLFWimage icons[1];
-    icons[0].pixels = stbi_load("./img/icon.png", &icons[0].width, &icons[0].height, 0, 4); //rgba channels
+    icons[0].pixels = stbi_load("./rsc/img/icon.png", &icons[0].width, &icons[0].height, 0, 4); //rgba channels
     glfwSetWindowIcon(win, 1, icons);
     stbi_image_free(icons[0].pixels);
+}
 
-
-    glEnable(GL_MULTISAMPLE);
-    glfwSwapInterval(0);
+unsigned int VAO, VBO;
+int main() {
+    auto win = StartOpenGL();
 
     glfwSetFramebufferSizeCallback(win, FramebufferSizeCallback);
     FramebufferSizeCallback(win, WIN_WIDTH, WIN_HEIGHT);
 
-    auto shaderProgram1 = CompileProgram(vertexShaderSource, fragmentShaderSource);
+    TextRenderer textRender;
+    textRender.Init();
 
+    InitIcon(win);
 
-    std::vector<float> vertices = {
-        -0.5f, -0.5f, 0.0f,
-        -0.5f, 0.5f, 0.0f,
-        0.5f, 0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        -0.5f, -0.5f, 0.0f,
-    };
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    for (int i = 0; i < 2500000; ++i) {
-        vertices.push_back(std::rand());
-    }
+    Shader shader("./rsc/shaders/gl_textVertexShader.glsl", "./rsc/shaders/gl_textFragmentShader.glsl");
+    glm::mat4 projection = glm::ortho(0.0f, static_cast<float>(WIN_WIDTH), 0.0f, static_cast<float>(WIN_HEIGHT));
+    shader.use();
+    glUniformMatrix4fv(glGetUniformLocation(shader.ID, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
-    std::vector indices = {  // note that we start from 0!
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,    // first triangle
-    };
-
-
-    auto first = GenerateVBOandVAO(vertices, indices);
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    std::vector modes = {
-        GL_LINE,
-        // GL_FILL,
-        // GL_POINT,
-    };
-
-    auto currMode = modes.begin();
-    auto i = 0;
     while ( !glfwWindowShouldClose(win) ) {
         ProcessInput(win);
 
-        if( currMode == modes.end() ) currMode = modes.begin();
-
-        glPolygonMode(GL_FRONT_AND_BACK, *currMode);
-
-        glClearColor(0.1f, 0.3f, 0.2f, 1.0f);
+        // set background color
+        glClearColor(0.05f, 0.0f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(shaderProgram1);
-
-        glBindVertexArray(first.VAO);
-        glDrawElements(GL_LINES, 5, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        textRender.RenderText(shader, "Yaroshenko", 100.0f, 500.0f, 1.0f, VAO, VBO);
+        textRender.RenderText(shader, "Oleksandr", 100.0f, 400.0f, 1.0f, VAO, VBO);
+        textRender.RenderText(shader, "IM-21", 100.0f, 300.0f, 1.0f, VAO, VBO);
+        textRender.RenderText(shader, "Smartphone Vivo", 400.0f, 100.0f, 0.3f, VAO, VBO);
 
         glfwSwapBuffers(win);
         glfwPollEvents();
-
-        if( !(i % 1000) )++currMode;
-        ++i;
     }
-
-    // free our VAO and VBO
-    glDeleteVertexArrays(1, &first.VAO);
-
-    glDeleteBuffers(1, &first.VBO);
 
     glfwTerminate();
 }
